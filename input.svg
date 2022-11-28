@@ -6,7 +6,7 @@
   <polyline stroke="gray" fill="none" points="700,50 270,50 500,200 100,100" />
   <circle cx="80" cy="100" r="100" fill="none" stroke="red" />
   <circle cx="80" cy="100" r="50" />
-  <g stroke="rebeccapurple" stroke-width="2" fill="gold">
+  <g stroke="rebeccapurple" stroke-width="2" fill="gold" opacity=".618">
     <rect x="25" y="25" rx="10" ry="10" width="50" height="50" />
     <rect x="125" y="25" rx="10" ry="10" width="50" height="50" fill="lightskyblue" />
     <rect x="225" y="25" rx="10" ry="10" width="50" height="50" />

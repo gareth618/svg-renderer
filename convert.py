@@ -34,7 +34,6 @@ def svg_to_png(ast):
         nonlocal x_offset
         nonlocal y_offset
 
-        tag = node.tag[len('{http://www.w3.org/2000/svg}'):]
         new_context = context.copy()
         if 'stroke' in node.attrib:
             new_context['stroke'] = string_to_rgb(node.attrib['stroke'])
@@ -45,6 +44,19 @@ def svg_to_png(ast):
         if 'opacity' in node.attrib:
             new_context['opacity'] = int(float(node.attrib['opacity']) * 255)
 
+        line_attrs = {
+            'fill': (*(new_context['stroke'] or (0, 0, 0)), new_context['opacity']),
+            'width': new_context['stroke-width']
+        }
+        shape_attrs = {
+            'fill': new_context['fill'] and (*new_context['fill'], new_context['opacity']),
+            'outline': new_context['stroke'],
+            'width': new_context['stroke-width']
+        }
+
+        tag = node.tag[len('{http://www.w3.org/2000/svg}'):]
+        overlay = None if tag == 'svg' else Image.new('RGBA', image.size, (255, 255, 255, 0))
+
         if tag == 'svg':
             x_offset, y_offset, image_w, image_h = [float(val) for val in node.attrib['viewBox'].split()]
             x_offset = -x_offset
@@ -52,14 +64,14 @@ def svg_to_png(ast):
             image_w = int(image_w)
             image_h = int(image_h)
             image = Image.new('RGBA', (image_w, image_h))
-            ImageDraw.Draw(image).rectangle([(0, 0), (image_w, image_h)], fill=(255, 255, 255, new_context['opacity']))
+            ImageDraw.Draw(image).rectangle([(0, 0), (image_w, image_h)], fill=(255, 255, 255, 255))
 
         if tag == 'line':
             x1 = x_offset + float(node.attrib['x1'])
             y1 = y_offset + float(node.attrib['y1'])
             x2 = x_offset + float(node.attrib['x2'])
             y2 = y_offset + float(node.attrib['y2'])
-            ImageDraw.Draw(image).line([(x1, y1), (x2, y2)], fill=new_context['stroke'] or (0, 0, 0), width=new_context['stroke-width'])
+            ImageDraw.Draw(overlay).line([(x1, y1), (x2, y2)], **line_attrs)
 
         if tag == 'rect':
             x = x_offset + float(node.attrib['x'])
@@ -73,29 +85,31 @@ def svg_to_png(ast):
                 ry = float(node.attrib['rx'])
             if 'ry' in node.attrib:
                 ry = float(node.attrib['ry'])
-            ImageDraw.Draw(image).rounded_rectangle([(x, y), (x + w, y + h)], radius=(rx + ry) / 2, fill=new_context['fill'] and (*new_context['fill'], new_context['opacity']), outline=new_context['stroke'], width=new_context['stroke-width'])
+            ImageDraw.Draw(overlay).rounded_rectangle([(x, y), (x + w, y + h)], radius=(rx + ry) / 2, **shape_attrs)
 
         if tag == 'circle':
             cx = x_offset + float(node.attrib['cx'])
             cy = y_offset + float(node.attrib['cy'])
             r = float(node.attrib['r'])
-            ImageDraw.Draw(image).ellipse([(cx - r, cy - r), (cx + r, cy + r)], fill=new_context['fill'] and (*new_context['fill'], new_context['opacity']), outline=new_context['stroke'], width=new_context['stroke-width'])
+            ImageDraw.Draw(overlay).ellipse([(cx - r, cy - r), (cx + r, cy + r)], **shape_attrs)
 
         if tag == 'ellipse':
             cx = x_offset + float(node.attrib['cx'])
             cy = y_offset + float(node.attrib['cy'])
             rx = float(node.attrib['rx'])
             ry = float(node.attrib['ry'])
-            ImageDraw.Draw(image).ellipse([(cx - rx, cy - ry), (cx + rx, cy + ry)], fill=new_context['fill'] and (*new_context['fill'], new_context['opacity']), outline=new_context['stroke'], width=new_context['stroke-width'])
+            ImageDraw.Draw(overlay).ellipse([(cx - rx, cy - ry), (cx + rx, cy + ry)], **shape_attrs)
 
         if tag == 'polyline':
             points = [tuple(float(val) for val in point.split(',')) for point in node.attrib['points'].split()]
             for p1, p2 in zip(points[:-1], points[1:]):
-                ImageDraw.Draw(image).line([
+                ImageDraw.Draw(overlay).line([
                     (x_offset + p1[0], y_offset + p1[1]),
                     (x_offset + p2[0], y_offset + p2[1])
-                ], fill=new_context['stroke'] or (0, 0, 0), width=new_context['stroke-width'])
+                ], **line_attrs)
 
+        if overlay:
+            image = Image.alpha_composite(image, overlay)
         for son in node:
             dfs(son, new_context)
 
