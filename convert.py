@@ -1,4 +1,24 @@
+import re
+import json
 from PIL import Image, ImageDraw
+
+color_codes = json.load(open('color-codes.json', 'r'))
+
+def string_to_rgb(string):
+    if re.match(r'#[0-9a-fA-F]{6}', string):
+        r = string[1:3]
+        g = string[3:5]
+        b = string[5:7]
+        return int(r, 16), int(g, 16), int(b, 16)
+    match = re.match(r'rgb *\((?P<r>\d{1,3}), *(?P<g>\d{1,3}), *(?P<b>\d{1,3})\)', string)
+    if match:
+        return (
+            int(match.groupdict()['r']),
+            int(match.groupdict()['g']),
+            int(match.groupdict()['b'])
+        )
+    if string in color_codes:
+        return string_to_rgb(color_codes[string])
 
 def svg_to_png(ast):
     image = None
@@ -7,7 +27,7 @@ def svg_to_png(ast):
     x_offset = 0
     y_offset = 0
 
-    def dfs(node):
+    def dfs(node, context):
         nonlocal image
         nonlocal image_w
         nonlocal image_h
@@ -15,20 +35,31 @@ def svg_to_png(ast):
         nonlocal y_offset
 
         tag = node.tag[len('{http://www.w3.org/2000/svg}'):]
+        new_context = context.copy()
+        if 'stroke' in node.attrib:
+            new_context['stroke'] = string_to_rgb(node.attrib['stroke'])
+        if 'stroke-width' in node.attrib:
+            new_context['stroke-width'] = int(float(node.attrib['stroke-width']))
+        if 'fill' in node.attrib:
+            new_context['fill'] = string_to_rgb(node.attrib['fill'])
+        if 'opacity' in node.attrib:
+            new_context['opacity'] = int(float(node.attrib['opacity']) * 255)
+
         if tag == 'svg':
             x_offset, y_offset, image_w, image_h = [float(val) for val in node.attrib['viewBox'].split()]
             x_offset = -x_offset
             y_offset = -y_offset
             image_w = int(image_w)
             image_h = int(image_h)
-            image = Image.new('RGB', (image_w, image_h))
+            image = Image.new('RGBA', (image_w, image_h))
+            ImageDraw.Draw(image).rectangle([(0, 0), (image_w, image_h)], fill=(255, 255, 255, new_context['opacity']))
 
         if tag == 'line':
             x1 = x_offset + float(node.attrib['x1'])
             y1 = y_offset + float(node.attrib['y1'])
             x2 = x_offset + float(node.attrib['x2'])
             y2 = y_offset + float(node.attrib['y2'])
-            ImageDraw.Draw(image).line([(x1, y1), (x2, y2)])
+            ImageDraw.Draw(image).line([(x1, y1), (x2, y2)], fill=new_context['stroke'] or (0, 0, 0), width=new_context['stroke-width'])
 
         if tag == 'rect':
             x = x_offset + float(node.attrib['x'])
@@ -42,20 +73,20 @@ def svg_to_png(ast):
                 ry = float(node.attrib['rx'])
             if 'ry' in node.attrib:
                 ry = float(node.attrib['ry'])
-            ImageDraw.Draw(image).rounded_rectangle([(x, y), (x + w, y + h)], radius=(rx + ry) / 2)
+            ImageDraw.Draw(image).rounded_rectangle([(x, y), (x + w, y + h)], radius=(rx + ry) / 2, fill=new_context['fill'] and (*new_context['fill'], new_context['opacity']), outline=new_context['stroke'], width=new_context['stroke-width'])
 
         if tag == 'circle':
             cx = x_offset + float(node.attrib['cx'])
             cy = y_offset + float(node.attrib['cy'])
             r = float(node.attrib['r'])
-            ImageDraw.Draw(image).ellipse([(cx - r, cy - r), (cx + r, cy + r)])
+            ImageDraw.Draw(image).ellipse([(cx - r, cy - r), (cx + r, cy + r)], fill=new_context['fill'] and (*new_context['fill'], new_context['opacity']), outline=new_context['stroke'], width=new_context['stroke-width'])
 
         if tag == 'ellipse':
             cx = x_offset + float(node.attrib['cx'])
             cy = y_offset + float(node.attrib['cy'])
             rx = float(node.attrib['rx'])
             ry = float(node.attrib['ry'])
-            ImageDraw.Draw(image).ellipse([(cx - rx, cy - ry), (cx + rx, cy + ry)])
+            ImageDraw.Draw(image).ellipse([(cx - rx, cy - ry), (cx + rx, cy + ry)], fill=new_context['fill'] and (*new_context['fill'], new_context['opacity']), outline=new_context['stroke'], width=new_context['stroke-width'])
 
         if tag == 'polyline':
             points = [tuple(float(val) for val in point.split(',')) for point in node.attrib['points'].split()]
@@ -63,12 +94,17 @@ def svg_to_png(ast):
                 ImageDraw.Draw(image).line([
                     (x_offset + p1[0], y_offset + p1[1]),
                     (x_offset + p2[0], y_offset + p2[1])
-                ])
+                ], fill=new_context['stroke'] or (0, 0, 0), width=new_context['stroke-width'])
 
         for son in node:
-            dfs(son)
+            dfs(son, new_context)
 
-    dfs(ast.getroot())
+    dfs(ast.getroot(), {
+        'stroke': None,
+        'stroke-width': 1,
+        'fill': (0, 0, 0),
+        'opacity': 255
+    })
     return image
 
 __all__ = ['svg_to_png']

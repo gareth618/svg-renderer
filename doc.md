@@ -39,8 +39,7 @@
 
 ## presentation attributes
 
-- `color` hex, rgb, keyword
-- `fill` color
-- `opacity` număr între `0` și `1`
-- `stroke` color
+- `stroke` hex, rgb, keyword
 - `stroke-width` număr `px`
+- `fill` hex, rgb, keyword
+- `opacity` număr între `0` și `1`
