@@ -1,3 +1,4 @@
+import re
 import colors
 import bezier
 from PIL import Image, ImageDraw
@@ -95,18 +96,18 @@ def render(ast):
             draw_lines(points)
 
         if tag == 'path':
-            tokens = node.attrib['d'].split(' ')
-            i = 0
-            x = 0; first_x = 1e9
-            y = 0; first_y = 1e9
+            path = node.attrib['d']
+            path = path.replace(',', ' ')
+            path = path.replace('-', ' -')
+            for command in 'mlhvcsqtazMLHVCSQTAZ':
+                path = path.replace(command, f' {command} ')
+            path = path.strip()
+            path = re.sub(r' +', ' ', path)
+            tokens = path.split(' ')
 
-            def update_first_xy():
-                nonlocal x, first_x
-                nonlocal y, first_y
-                if first_x != 1e9: return
-                if first_y != 1e9: return
-                first_x = x
-                first_y = y
+            i, x, y = 0, 0, 0
+            first_point = None
+            last_point = None
 
             def next_relative_points(count):
                 nonlocal i, tokens, x, y
@@ -115,7 +116,7 @@ def render(ast):
                 xs = [x] + [x + cx for cx in values[0::2]]
                 ys = [y] + [y + cy for cy in values[1::2]]
                 x, y = xs[-1], ys[-1]
-                return zip(xs, ys)
+                return list(zip(xs, ys))
 
             def next_absolute_points(count):
                 nonlocal i, tokens, x, y
@@ -124,11 +125,13 @@ def render(ast):
                 xs = [x] + values[0::2]
                 ys = [y] + values[1::2]
                 x, y = xs[-1], ys[-1]
-                return zip(xs, ys)
+                return list(zip(xs, ys))
 
             while i < len(tokens):
+                if tokens[i] not in ['m', 'M'] and first_point is None:
+                    first_point = x, y
                 if tokens[i] in ['z', 'Z']:
-                    draw_lines([(x, y), (first_x, first_y)])
+                    draw_lines([(x, y), first_point])
                     i += 1
                 elif tokens[i] == 'm':
                     x += float(tokens[i + 1])
@@ -139,41 +142,45 @@ def render(ast):
                     y = float(tokens[i + 2])
                     i += 3
                 elif tokens[i] == 'l':
-                    update_first_xy()
                     draw_lines(next_relative_points(1))
                 elif tokens[i] == 'L':
-                    update_first_xy()
                     draw_lines(next_absolute_points(1))
                 elif tokens[i] == 'h':
-                    update_first_xy()
                     dx = float(tokens[i + 1])
                     draw_lines([(x, y), (x + dx, y)])
                     x += dx
                     i += 2
                 elif tokens[i] == 'H':
-                    update_first_xy()
                     new_x = float(tokens[i + 1])
                     draw_lines([(x, y), (new_x, y)])
                     x = new_x
                     i += 2
                 elif tokens[i] == 'v':
-                    update_first_xy()
                     dy = float(tokens[i + 1])
                     draw_lines([(x, y), (x, y + dy)])
                     y += dy
                     i += 2
                 elif tokens[i] == 'V':
-                    update_first_xy()
                     new_y = float(tokens[i + 1])
                     draw_lines([(x, y), (x, new_y)])
                     x = new_y
                     i += 2
-                elif tokens[i] == 'q':
-                    update_first_xy()
-                    draw_lines(bezier.quadratic_bezier(*next_relative_points(2)))
-                elif tokens[i] == 'Q':
-                    update_first_xy()
-                    draw_lines(bezier.quadratic_bezier(*next_absolute_points(2)))
+                elif tokens[i] in ['c', 'C']:
+                    points = next_relative_points(3) if tokens[i] == 'c' else next_absolute_points(3)
+                    draw_lines(bezier.cubic_bezier(*points))
+                    last_point = points[-2]
+                elif tokens[i] in ['s', 'S']:
+                    points = next_relative_points(2) if tokens[i] == 's' else next_absolute_points(2)
+                    draw_lines(bezier.smooth_cubic_bezier(last_point, *points))
+                    last_point = points[-2]
+                elif tokens[i] in ['q', 'Q']:
+                    points = next_relative_points(2) if tokens[i] == 'q' else next_absolute_points(2)
+                    draw_lines(bezier.quadratic_bezier(*points))
+                    last_point = points[-2]
+                elif tokens[i] in ['t', 'T']:
+                    points = next_relative_points(1) if tokens[i] == 't' else next_absolute_points(1)
+                    draw_lines(bezier.smooth_quadratic_bezier(last_point, *points))
+                    last_point = points[-2]
 
         if overlay:
             image = Image.alpha_composite(image, overlay)
