@@ -1,8 +1,8 @@
 import os
 import sys
 import colorama
-from xml.etree import ElementTree as ET
-from convert import svg_to_png
+import renderer
+import xml.etree.ElementTree
 
 exe_path = sys.argv[0]
 args = sys.argv[1:]
@@ -11,10 +11,10 @@ png_path = None
 show_option = False
 show_all_option = False
 
-def error(string): return f'{colorama.Style.BRIGHT}{colorama.Fore.RED}{string}{colorama.Style.RESET_ALL}'
-def message(string): return f'{colorama.Style.BRIGHT}{colorama.Fore.BLUE}{string}{colorama.Style.RESET_ALL}'
-def keyword(string): return f'{colorama.Fore.GREEN}{string}{colorama.Style.RESET_ALL}'
-def option(string): return f'{colorama.Fore.YELLOW}{string}{colorama.Style.RESET_ALL}'
+error = lambda string: f'{colorama.Style.BRIGHT}{colorama.Fore.RED}{string}{colorama.Style.RESET_ALL}'
+message = lambda string: f'{colorama.Style.BRIGHT}{colorama.Fore.BLUE}{string}{colorama.Style.RESET_ALL}'
+keyword = lambda string: f'{colorama.Fore.GREEN}{string}{colorama.Style.RESET_ALL}'
+option = lambda string: f'{colorama.Fore.YELLOW}{string}{colorama.Style.RESET_ALL}'
 
 if args and not os.path.isfile(args[0]):
     print(error('error:'), 'file', keyword(args[0]), 'not found')
@@ -44,7 +44,7 @@ else:
     sys.exit(1)
 
 try:
-    image = svg_to_png(ET.parse(svg_path))
+    image = renderer.render(xml.etree.ElementTree.parse(svg_path))
 except:
     print(error('error:'), 'file', keyword(svg_path), 'contains syntactic errors')
     sys.exit(1)
