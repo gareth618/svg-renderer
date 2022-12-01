@@ -1,42 +1,32 @@
 def reflect(p1, p2):
-    c1 = complex(*p1)
-    c2 = complex(*p2)
-    c3 = 2 * c2 - c1
-    return (c3.real, c3.imag)
+    return 2 * p2 - p1
 
-def lerp(c1, c2, t):
-    return c1 * (1 - t) + c2 * t
+def lerp(p1, p2, t):
+    return p1 * (1 - t) + p2 * t
 
-def quadratic_bezier(p1, p2, p3):
-    c11 = complex(*p1)
-    c12 = complex(*p2)
-    c13 = complex(*p3)
-    points = [p1]
+def quadratic_bezier(p11, p12, p13):
+    points = [p11]
     for i in range(0, 100):
         t = i / 100
-        c21 = lerp(c11, c12, t)
-        c22 = lerp(c12, c13, t)
-        c31 = lerp(c21, c22, t)
-        points.append((c31.real, c31.imag))
-    points.append(p3)
+        p21 = lerp(p11, p12, t)
+        p22 = lerp(p12, p13, t)
+        p31 = lerp(p21, p22, t)
+        points.append(p31)
+    points.append(p13)
     return points
 
-def cubic_bezier(p1, p2, p3, p4):
-    c11 = complex(*p1)
-    c12 = complex(*p2)
-    c13 = complex(*p3)
-    c14 = complex(*p4)
-    points = [p1]
+def cubic_bezier(p11, p12, p13, p14):
+    points = [p11]
     for i in range(0, 100):
         t = i / 100
-        c21 = lerp(c11, c12, t)
-        c22 = lerp(c12, c13, t)
-        c23 = lerp(c13, c14, t)
-        c31 = lerp(c21, c22, t)
-        c32 = lerp(c22, c23, t)
-        c41 = lerp(c31, c32, t)
-        points.append((c41.real, c41.imag))
-    points.append(p4)
+        p21 = lerp(p11, p12, t)
+        p22 = lerp(p12, p13, t)
+        p23 = lerp(p13, p14, t)
+        p31 = lerp(p21, p22, t)
+        p32 = lerp(p22, p23, t)
+        p41 = lerp(p31, p32, t)
+        points.append(p41)
+    points.append(p14)
     return points
 
 def smooth_quadratic_bezier(p0, p1, p3):
