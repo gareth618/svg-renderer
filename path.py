@@ -1,24 +1,15 @@
 import re
 import bezier
 
-class StringParser:
+class PathParser:
     def __init__(self, string):
-        commands = 'mlhvcsqtazMLHVCSQTAZ'
-        string = string.replace(',', ' ')
-        string = re.sub(r'(?<!e)\-', ' -', string)
-        string = re.sub(r'(?<!e)\+', ' +', string)
-        for command in commands:
-            string = string.replace(command, f' {command} ')
-        string = string.strip()
-        string = re.sub(r' +', ' ', string)
-        string = re.sub(r' (?=[x])'.replace('x', commands), '#', string)
-
         self.init = None
         self.prev = None
         self.last = complex(0, 0)
-
         self.commands = []
-        for command, args in [(token[0], [] if token[0] in 'zZ' else [float(value) for value in token[2:].split(' ')]) for token in string.split('#')]:
+
+        string = re.sub(r' (?=[mlhvcsqtazMLHVCSQTAZ])', '#', string)
+        for command, args in [(token[0], [float(val) for val in token[2:].split() if val != '']) for token in string.split('#')]:
             length = 0
             if command in 'mlML': length = 2
             if command in 'hvHV': length = 1
@@ -38,13 +29,15 @@ class StringParser:
                     self.commands.append((command, args[i:i + length]))
 
     def next_points(self):
-        if not self.commands: return
+        if not self.commands: return False, None
         command, args = self.commands[0]
         self.commands = self.commands[1:]
+        new_shape = False
         if command in 'mM':
             self.init = None
-        else:
-            self.init = self.init or self.last
+        elif self.init is None:
+            new_shape = True
+            self.init = self.last
 
         if command not in 'hvHV':
             args = [complex(x, y) for x, y in zip(args[0::2], args[1::2])]
@@ -57,32 +50,32 @@ class StringParser:
 
         if command in 'mM':
             self.last = args[0]
-            return []
+            return new_shape, []
         if command in 'zZ':
             last = self.last
             self.last = self.init
-            return [last, self.init]
+            return new_shape, [last, self.init]
         if command in 'lhvLHV':
             last = self.last
             self.last = args[0]
-            return [last] + args
+            return new_shape, [last] + args
         if command in 'cC':
             points = bezier.cubic_bezier(self.last, *args)
             self.prev = args[-2]
             self.last = args[-1]
-            return points
+            return new_shape, points
         if command in 'sS':
             points = bezier.smooth_cubic_bezier(self.prev, self.last, *args)
             self.prev = args[-2]
             self.last = args[-1]
-            return points
+            return new_shape, points
         if command in 'qQ':
             points = bezier.quadratic_bezier(self.last, *args)
             self.prev = args[-2]
             self.last = args[-1]
-            return points
+            return new_shape, points
         if command in 'tT':
             points = bezier.smooth_quadratic_bezier(self.prev, self.last, *args)
             self.prev = self.last
-            self.last = args[-2]
-            return points
+            self.last = args[-1]
+            return new_shape, points

@@ -1,3 +1,4 @@
+import re
 import path
 import colors
 from PIL import Image, ImageDraw
@@ -33,12 +34,23 @@ def render(ast):
         }
         shape_attrs = {
             'fill': new_context['fill'] and (*new_context['fill'], new_context['opacity']),
-            'outline': new_context['stroke'],
+            'outline': (*new_context['stroke'], new_context['opacity']) if new_context['stroke'] else None,
             'width': new_context['stroke-width']
         }
 
         tag = node.tag[len('{http://www.w3.org/2000/svg}'):]
         overlay = None if tag == 'svg' else Image.new('RGBA', image.size, (255, 255, 255, 0))
+
+        def clean_string(string):
+            commands = 'mlhvcsqtazMLHVCSQTAZ'
+            string = string.replace(',', ' ')
+            string = re.sub(r'(?<!e)\-', ' -', string)
+            string = re.sub(r'(?<!e)\+', ' +', string)
+            for command in commands:
+                string = string.replace(command, f' {command} ')
+            string = string.strip()
+            string = re.sub(r' +', ' ', string)
+            return string
 
         def draw_lines(points):
             for p1, p2 in zip(points[:-1], points[1:]):
@@ -48,7 +60,7 @@ def render(ast):
                 ], **line_attrs)
 
         if tag == 'svg':
-            x_offset, y_offset, image_w, image_h = [float(val) for val in node.attrib['viewBox'].split()]
+            x_offset, y_offset, image_w, image_h = [float(val) for val in clean_string(node.attrib['viewBox']).split()]
             x_offset = -x_offset
             y_offset = -y_offset
             image_w = int(image_w)
@@ -91,21 +103,29 @@ def render(ast):
             ImageDraw.Draw(overlay).ellipse([(cx - rx, cy - ry), (cx + rx, cy + ry)], **shape_attrs)
 
         if tag == 'polyline':
-            points = [tuple(float(val) for val in point.split(',')) for point in node.attrib['points'].split()]
-            draw_lines(points)
+            args = [float(val) for val in clean_string(node.attrib['points']).split()]
+            draw_lines(list(zip(args[0::2], args[1::2])))
 
         if tag == 'polygon':
-            points = [tuple(float(val) for val in point.split(',')) for point in node.attrib['points'].split()]
-            points.append(points[0])
-            draw_lines(points)
+            args = [float(val) for val in clean_string(node.attrib['points']).split()]
+            ImageDraw.Draw(overlay).polygon([(x_offset + x, y_offset + y) for x, y in zip(args[0::2], args[1::2])], **shape_attrs)
 
         if tag == 'path':
-            parser = path.StringParser(node.attrib['d'])
+            parser = path.PathParser(clean_string(node.attrib['d']))
+            shapes = [[]]
             while True:
-                points = parser.next_points()
+                new_shape, points = parser.next_points()
                 if points is None: break
-                if len(points) == 0: continue
-                draw_lines([(point.real, point.imag) for point in points])
+                if not points: continue
+                if new_shape and shapes[-1]:
+                    shapes.append([])
+                shapes[-1] += [(point.real, point.imag) for point in points]
+            if new_context['fill']:
+                for shape in shapes:
+                    ImageDraw.Draw(overlay).polygon([(x_offset + x, y_offset + y) for x, y in shape], **shape_attrs)
+            else:
+                for shape in shapes:
+                    draw_lines(shape)
 
         if overlay:
             image = Image.alpha_composite(image, overlay)
