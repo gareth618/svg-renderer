@@ -1,3 +1,8 @@
+"""This module implements the CLI for SVG renderer. The command should follow the syntax
+`python3 exe-path svg-path [{-o | --output} png-path] [{-s | --show} | {-sa | --show-all}]`.
+The `--show[-all]` option tells the program whether it should open the file(s) after rendering or not.
+"""
+
 import os
 import sys
 import colorama
@@ -40,7 +45,11 @@ elif len(args) == 4 and args[1] in ['-o', '--output'] and args[3] in ['-sa', '--
     show_all_option = True
 else:
     print(error('error:'), 'wrong command format')
-    print(message('usage:'), 'python3', exe_path, '%s [{%s | %s} %s] [{%s | %s} | {%s | %s}]' % (keyword('svg-path'), option('-o'), option('--output'), keyword('png-path'), option('-s'), option('--show'), option('-sa'), option('--show-all')))
+    print(message('usage:'), 'python3', exe_path, '%s [{%s | %s} %s] [{%s | %s} | {%s | %s}]' % (
+        keyword('svg-path'), option('-o'), option('--output'), keyword('png-path'),
+        option('-s'), option('--show'),
+        option('-sa'), option('--show-all')
+    ))
     sys.exit(1)
 
 try:

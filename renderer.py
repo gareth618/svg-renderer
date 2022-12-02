@@ -4,6 +4,9 @@ import colors
 from PIL import Image, ImageDraw
 
 def render(ast):
+    """This function takes as input the AST of an SVG and returns
+    a `PIL.Image` object containing the equivalent PNG image.
+    """
     image = None
     image_w = 0
     image_h = 0
@@ -18,6 +21,7 @@ def render(ast):
         nonlocal x_offset
         nonlocal y_offset
 
+        # updating the `context` based on the presentation attributes in the current node
         new_context = context.copy()
         if 'stroke' in node.attrib:
             new_context['stroke'] = rgb.from_string(node.attrib['stroke'])
@@ -38,7 +42,10 @@ def render(ast):
             'width': new_context['stroke-width']
         }
 
+        # getting rid of the weird prefix of the SVG nodes generated using the `xml` package
         tag = node.tag[len('{http://www.w3.org/2000/svg}'):]
+        # we draw each shape in its own overlay image that's going to be composed with the initial one
+        # we can't take into account the opacity of the shape in any other way
         overlay = None if tag == 'svg' else Image.new('RGBA', image.size, (255, 255, 255, 0))
 
         def clean_string(string):
@@ -52,7 +59,7 @@ def render(ast):
             string = re.sub(r' +', ' ', string)
             return string
 
-        def draw_lines(points):
+        def draw_polyline(points):
             for p1, p2 in zip(points[:-1], points[1:]):
                 ImageDraw.Draw(overlay).line([
                     (x_offset + p1[0], y_offset + p1[1]),
@@ -73,7 +80,7 @@ def render(ast):
             y1 = float(node.attrib['y1'])
             x2 = float(node.attrib['x2'])
             y2 = float(node.attrib['y2'])
-            draw_lines([(x1, y1), (x2, y2)])
+            draw_polyline([(x1, y1), (x2, y2)])
 
         if tag == 'rect':
             x = x_offset + float(node.attrib['x'])
@@ -104,7 +111,7 @@ def render(ast):
 
         if tag == 'polyline':
             args = [float(val) for val in clean_string(node.attrib['points']).split()]
-            draw_lines(list(zip(args[0::2], args[1::2])))
+            draw_polyline(list(zip(args[0::2], args[1::2])))
 
         if tag == 'polygon':
             args = [float(val) for val in clean_string(node.attrib['points']).split()]
@@ -125,7 +132,7 @@ def render(ast):
                     ImageDraw.Draw(overlay).polygon([(x_offset + x, y_offset + y) for x, y in shape], **shape_attrs)
             else:
                 for shape in shapes:
-                    draw_lines(shape)
+                    draw_polyline(shape)
 
         if overlay:
             image = Image.alpha_composite(image, overlay)

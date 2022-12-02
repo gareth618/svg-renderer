@@ -2,11 +2,16 @@ import re
 import bezier
 
 class PathParser:
+    """This class is used for parsing SVG-path strings."""
+
     def __init__(self, string):
-        self.init = None
-        self.prev = None
-        self.last = complex(0, 0)
-        self.commands = []
+        """The constructor takes as input the SVG-path string and
+        converts it into an array of minimal-argument drawing commands.
+        """
+        self.init = None # the first point in the current subpath
+        self.prev = None # the second last control-point in a Bézier curve (used for `S/T` commands)
+        self.last = complex(0, 0) # the last drawn point
+        self.commands = [] # the array of minimal-argument drawing commands
 
         string = re.sub(r' (?=[mlhvcsqtazMLHVCSQTAZ])', '#', string)
         for command, args in [(token[0], [float(val) for val in token[2:].split() if val != '']) for token in string.split('#')]:
@@ -29,6 +34,10 @@ class PathParser:
                     self.commands.append((command, args[i:i + length]))
 
     def next_points(self):
+        """This function processes the next path command and returns a `(new_shape, points)` tuple
+        where `new_shape` is a flag informing us whether we need to close the current subpath or not
+        and `points` represents the polyline we need to draw next.
+        """
         if not self.commands: return False, None
         command, args = self.commands[0]
         self.commands = self.commands[1:]
@@ -39,6 +48,8 @@ class PathParser:
             new_shape = True
             self.init = self.last
 
+        # converting the command arguments to an array of complex numbers
+        # also, here we replace relative arguments with absolute arguments
         if command not in 'hvHV':
             args = [complex(x, y) for x, y in zip(args[0::2], args[1::2])]
             if command.islower():
